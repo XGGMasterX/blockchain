@@ -1,172 +1,153 @@
-/*****Please include following header files*****/
-// iostream
-// string
-/***********************************************/
+// Creado por: Gerard (Gerry Studios)
+// Actualizado: 6 de julio de 2020
+// NOTA: utiliza uint32_t para todos los elementos para usar siempre 32 bits (módulo 2^32)
 
-/*****Please use following namespaces*****/
-// std
-/*****************************************/
+#pragma once
 
-#define uchar unsigned char
-#define uint unsigned int
 #include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <math.h>
+
+#define HEX "0123456789abcdef"
+#define H_INICIAL { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }
+
+#define SR(n,d) ((n >> d) | (n << (32 - d)))
+#define Ch(x,y,z) ((x & y) ^ (~x & z))
+#define Maj(a,b,c) ((a & b) ^ (a & c) ^ (b & c))
+#define s0(x) (SR(x, 2) ^ SR(x, 13) ^ SR(x, 22))
+#define s1(x) (SR(x, 6) ^ SR(x, 11) ^ SR(x, 25))
+#define o0(x) (SR(x, 7) ^ SR(x, 18) ^ (x >> 3))
+#define o1(x) (SR(x, 17) ^ SR(x, 19) ^ (x >> 10))
+
 using namespace std;
-#define DBL_INT_ADD(a,b,c) if (a > 0xffffffff - (c)) ++b; a += c;
-#define ROTLEFT(a,b) (((a) << (b)) | ((a) >> (32-(b))))
-#define ROTRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))
 
-#define CH(x,y,z) (((x) & (y)) ^ (~(x) & (z)))
-#define MAJ(x,y,z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
-#define EP0(x) (ROTRIGHT(x,2) ^ ROTRIGHT(x,13) ^ ROTRIGHT(x,22))
-#define EP1(x) (ROTRIGHT(x,6) ^ ROTRIGHT(x,11) ^ ROTRIGHT(x,25))
-#define SIG0(x) (ROTRIGHT(x,7) ^ ROTRIGHT(x,18) ^ ((x) >> 3))
-#define SIG1(x) (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))
 
-typedef struct {
-	uchar data[64];
-	uint datalen;
-	uint bitlen[2];
-	uint state[8];
-} SHA256_CTX;
+// constantes K
+uint32_t K[64] = {
+	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,
+	0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
+	0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,
+	0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+	0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,
+	0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,
+	0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,
+	0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+	0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,
+	0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,
+	0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+};
+// para los hashes
+uint32_t H[8] = H_INICIAL;
 
-uint k[64] = {
-	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
-	0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-	0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-	0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-	0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
-	0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-	0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
-	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+/*********************/
+// representación binaria de un número
+string int2bin(int n, int bits = 8) {
+	string r = string(bits, '0');
+	while (n) {
+		r.at(--bits) = ((n & 1) + 48);
+		n >>= 1;
+	}
+	return r;
+}
+
+// mensaje a binario
+string msg2bin(string t) {
+	string r = "";
+	for (auto c : t) r += int2bin(c);
+	return r;
+}
+// binario a entero
+int bin2int(string b) {
+	int r = 0;
+	for (int i = 0; i < b.length(); i++) r += b.at(b.length() - 1 - i) == '1' ? pow(2, i) : 0;
+	return r;
+}
+// representación hexadecimal
+string toHEX(uint32_t n, int digits) {
+	string res = string(digits, '0');
+	int ind = -1, mod = 0;
+	while (n > 15) {
+		mod = n % 16;
+		res.at(++ind) = HEX[mod];
+		n = (n - mod) / 16;
+	}
+	res.at(++ind) = HEX[n];
+	reverse(res.begin(), res.end());
+	return res;
+}
+/**************************************************/
+struct SHA256 {
+	static string cifrar(string t);
 };
 
-void SHA256Transform(SHA256_CTX* ctx, uchar data[])
-{
-	uint a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+// función hash de SHA256
+string SHA256::cifrar(string t) {
+	uint32_t ini[] = H_INICIAL;
+	for (int i = 0; i < 8; i++) H[i] = ini[i];
+	string msg = msg2bin(t) + "1";
+	int longitud_original = msg.length() - 1;
+	while (msg.length() % 512 != 448) msg += '0';
 
-	for (i = 0, j = 0; i < 16; ++i, j += 4)
-		m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
-	for (; i < 64; ++i)
-		m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
+	msg += int2bin(longitud_original, 64);
 
-	a = ctx->state[0];
-	b = ctx->state[1];
-	c = ctx->state[2];
-	d = ctx->state[3];
-	e = ctx->state[4];
-	f = ctx->state[5];
-	g = ctx->state[6];
-	h = ctx->state[7];
+	// dividimos en bloques de 512 bits
+	vector<vector<int>> M = vector<vector<int>>();
+	for (int i = 0; i < msg.length(); i += 512) {
+		vector<int> trozo = vector<int>(16);
+		string sub_msg = msg.substr(i, 512);
 
-	for (i = 0; i < 64; ++i) {
-		t1 = h + EP1(e) + CH(e, f, g) + k[i] + m[i];
-		t2 = EP0(a) + MAJ(a, b, c);
-		h = g;
-		g = f;
-		f = e;
-		e = d + t1;
-		d = c;
-		c = b;
-		b = a;
-		a = t1 + t2;
-	}
-
-	ctx->state[0] += a;
-	ctx->state[1] += b;
-	ctx->state[2] += c;
-	ctx->state[3] += d;
-	ctx->state[4] += e;
-	ctx->state[5] += f;
-	ctx->state[6] += g;
-	ctx->state[7] += h;
-}
-
-void SHA256Init(SHA256_CTX* ctx)
-{
-	ctx->datalen = 0;
-	ctx->bitlen[0] = 0;
-	ctx->bitlen[1] = 0;
-	ctx->state[0] = 0x6a09e667;
-	ctx->state[1] = 0xbb67ae85;
-	ctx->state[2] = 0x3c6ef372;
-	ctx->state[3] = 0xa54ff53a;
-	ctx->state[4] = 0x510e527f;
-	ctx->state[5] = 0x9b05688c;
-	ctx->state[6] = 0x1f83d9ab;
-	ctx->state[7] = 0x5be0cd19;
-}
-
-void SHA256Update(SHA256_CTX* ctx, uchar data[], uint len)
-{
-	for (uint i = 0; i < len; ++i) {
-		ctx->data[ctx->datalen] = data[i];
-		ctx->datalen++;
-		if (ctx->datalen == 64) {
-			SHA256Transform(ctx, ctx->data);
-			DBL_INT_ADD(ctx->bitlen[0], ctx->bitlen[1], 512);
-			ctx->datalen = 0;
+		for (int j = 0; j < 512; j += 32) {
+			string n = sub_msg.substr(j, 32);
+			trozo.at(j / 32) = bin2int(n);
 		}
-	}
-}
-
-void SHA256Final(SHA256_CTX* ctx, uchar hash[])
-{
-	uint i = ctx->datalen;
-
-	if (ctx->datalen < 56) {
-		ctx->data[i++] = 0x80;
-
-		while (i < 56)
-			ctx->data[i++] = 0x00;
-	}
-	else {
-		ctx->data[i++] = 0x80;
-
-		while (i < 64)
-			ctx->data[i++] = 0x00;
-
-		SHA256Transform(ctx, ctx->data);
-		memset(ctx->data, 0, 56);
+		M.push_back(trozo);
 	}
 
-	DBL_INT_ADD(ctx->bitlen[0], ctx->bitlen[1], ctx->datalen * 8);
-	ctx->data[63] = ctx->bitlen[0];
-	ctx->data[62] = ctx->bitlen[0] >> 8;
-	ctx->data[61] = ctx->bitlen[0] >> 16;
-	ctx->data[60] = ctx->bitlen[0] >> 24;
-	ctx->data[59] = ctx->bitlen[1];
-	ctx->data[58] = ctx->bitlen[1] >> 8;
-	ctx->data[57] = ctx->bitlen[1] >> 16;
-	ctx->data[56] = ctx->bitlen[1] >> 24;
-	SHA256Transform(ctx, ctx->data);
+	for (auto Mi : M) {
+		uint32_t a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+		vector<uint32_t> W = vector<uint32_t>(64);
+		for (int i = 0; i < 64; i++) {
+			if (i < 16) W[i] = Mi[i];
+			else W[i] = o1(W.at(i - 2)) + W.at(i - 7) + o0(W.at(i - 15)) + W.at(i - 16);
 
-	for (i = 0; i < 4; ++i) {
-		hash[i] = (ctx->state[0] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 4] = (ctx->state[1] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 8] = (ctx->state[2] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 12] = (ctx->state[3] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 16] = (ctx->state[4] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 20] = (ctx->state[5] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 24] = (ctx->state[6] >> (24 - i * 8)) & 0x000000ff;
-		hash[i + 28] = (ctx->state[7] >> (24 - i * 8)) & 0x000000ff;
+
+			uint32_t T1 = h + s1(e) + Ch(e, f, g) + K[i] + W[i];
+			uint32_t T2 = s0(a) + Maj(a, b, c);
+
+			h = g;
+			g = f;
+			f = e;
+			e = d + T1;
+			d = c;
+			c = b;
+			b = a;
+			a = T1 + T2;
+
+			// descomentar esto para ver cada iteración
+			/*cout << "t=" << i << " => ";
+			cout << toHEX(a,8) << "  ";
+			cout << toHEX(b,8) << "  ";
+			cout << toHEX(c,8) << "  ";
+			cout << toHEX(d,8) << "  ";
+			cout << toHEX(e,8) << "  ";
+			cout << toHEX(f,8) << "  ";
+			cout << toHEX(g,8) << "  ";
+			cout << toHEX(h,8) << endl;*/
+		}
+		H[0] = a + H[0];
+		H[1] = b + H[1];
+		H[2] = c + H[2];
+		H[3] = d + H[3];
+		H[4] = e + H[4];
+		H[5] = f + H[5];
+		H[6] = g + H[6];
+		H[7] = h + H[7];
 	}
-}
 
-string SHA256(char* data) {
-	int strLen = strlen(data);
-	SHA256_CTX ctx;
-	unsigned char hash[32];
-	string hashStr = "";
-
-	SHA256Init(&ctx);
-	SHA256Update(&ctx, (unsigned char*)data, strLen);
-	SHA256Final(&ctx, hash);
-
-	char s[3];
-	for (int i = 0; i < 32; i++) {
-		sprintf(s, "%02x", hash[i]);
-		hashStr += s;
-	}
-
-	return hashStr;
+	// juntamos los hashes para mostrar el resultado
+	string resultado = "";
+	for (auto h : H) resultado += toHEX(h, 8);
+	return resultado;
 }
