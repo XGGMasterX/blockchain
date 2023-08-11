@@ -1,0 +1,4 @@
+﻿  Blockchain.cpp
+C:\Users\GGMaster\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.cpp(94,16): warning C4477: 'printf' : la cadena de formato '%zu' requiere un argumento de tipo 'unsigned __int64', pero el argumento variádico 1 tiene el tipo 'std::string'
+C:\Users\GGMaster\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.cpp(95,16): warning C4477: 'printf' : la cadena de formato '%zu' requiere un argumento de tipo 'unsigned __int64', pero el argumento variádico 1 tiene el tipo 'std::string'
+  Project2.vcxproj -> C:\Users\GGMaster\source\repos\Project2\x64\Debug\Project2.exe
