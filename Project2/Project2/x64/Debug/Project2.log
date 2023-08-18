@@ -1,4 +1,10 @@
-﻿  Blockchain.cpp
-C:\Users\GGMaster\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.cpp(94,16): warning C4477: 'printf' : la cadena de formato '%zu' requiere un argumento de tipo 'unsigned __int64', pero el argumento variádico 1 tiene el tipo 'std::string'
-C:\Users\GGMaster\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.cpp(95,16): warning C4477: 'printf' : la cadena de formato '%zu' requiere un argumento de tipo 'unsigned __int64', pero el argumento variádico 1 tiene el tipo 'std::string'
+﻿  Block.cpp
+C:\Users\GGMaster\source\repos\Project2\Project2\TransactionData.h(127,2): warning C4091: 'static ': se ha omitido a la izquierda de 'ListTransactions' cuando no hay ninguna variable declarada
+C:\Users\GGMaster\source\repos\Project2\Project2\sha256.h(64,69): warning C4244: '+=': conversión de 'double' a 'int'; posible pérdida de datos
+C:\Users\GGMaster\source\repos\Project2\Project2\sha256.h(90,42): warning C4267: 'inicializando': conversión de 'size_t' a 'int'; posible pérdida de datos
+  Blockchain.cpp
+C:\Users\GGMaster\source\repos\Project2\Project2\TransactionData.h(127,2): warning C4091: 'static ': se ha omitido a la izquierda de 'ListTransactions' cuando no hay ninguna variable declarada
+  main.cpp
+C:\Users\GGMaster\source\repos\Project2\Project2\TransactionData.h(127,2): warning C4091: 'static ': se ha omitido a la izquierda de 'ListTransactions' cuando no hay ninguna variable declarada
+  Generando código...
   Project2.vcxproj -> C:\Users\GGMaster\source\repos\Project2\x64\Debug\Project2.exe

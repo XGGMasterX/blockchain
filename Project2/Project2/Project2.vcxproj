@@ -18,6 +18,21 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Block.cpp" />
+    <ClCompile Include="Blockchain.cpp" />
+    <ClCompile Include="Cuenta.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Usuario.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Block.h" />
+    <ClInclude Include="Blockchain.h" />
+    <ClInclude Include="Cuenta.h" />
+    <ClInclude Include="sha256.h" />
+    <ClInclude Include="TransactionData.h" />
+    <ClInclude Include="Usuario.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -126,17 +141,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Block.h" />
-    <ClInclude Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.h" />
-    <ClInclude Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\sha256.h" />
-    <ClInclude Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\TransactionData.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Block.cpp" />
-    <ClCompile Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\Blockchain.cpp" />
-    <ClCompile Include="..\..\..\..\Desktop\Blockchain-C-Plus-Plus-Example-master\BlockChainExample\main.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

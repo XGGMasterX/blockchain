@@ -1,38 +1,84 @@
 #include <stdio.h>
 #include <string>
-#include <iostream>
 #include <sstream>
 #include "Block.h"
-#include "TransactionData.h"
 #include <vector>
 #include "sha256.h"
-#include <conio.h>
 
 using namespace std;
 
 //Constructor
-Block::Block(int idx, TransactionData d, string prevHash,int nonce)
+Block::Block(int idx, ListTransactions* list, string prevHash,int nonce)
 {
     index = idx;
-    data = d;
+    listTransactions->setLista(list);
     previousHash = prevHash;
     _nNonce = nonce;
-    blockHash = _CalculateHash();
+    transactions = 0;
+    if (previousHash == "0") {
+        this->blockHash = _CalculateHash();
+    }
+    _CalculateFee();
 }
 
 //Funciones de acceso privado
-int Block::getIndex()const
-{
-    return index;
+inline string Block::_CalculateHash() const {
+
+    std::string toHashS;
+    stringstream ss;
+    NodoTransaction* lista = listTransactions->getLista();
+    NodoTransaction* aux = new NodoTransaction();
+
+    if (lista->getData() != NULL) {
+        aux = lista;
+        while (aux->getData() != NULL)
+        {
+            TransactionData* data = aux->getData();
+            ss << std::to_string(data->amount) + data->receiverKey + data->senderKey + std::to_string(data->timestamp);
+
+            if (aux->getSiguiente() != NULL) {
+                aux = aux->getSiguiente();
+            }
+            else if (aux->getSiguiente() == NULL) {
+                break;
+            }
+        }
+        ss << std::to_string(fee) << std::to_string(_nNonce);
+        std::string toHashS = ss.str();
+
+        std::hash<std::string> tDataHash;
+        std::hash<std::string> prevHash;
+
+        string limitHash = to_string(tDataHash(toHashS) ^ (prevHash(previousHash)) << 1);
+        string sha256 = SHA256::cifrar(limitHash);
+        return sha256;
+    }
+
+    return "NULL";
 }
 
-int64_t Block::getNonce() const
-{
-    return _nNonce;
+void Block::_CalculateFee(){
+    NodoTransaction* lista = listTransactions->getLista();
+    NodoTransaction* aux = new NodoTransaction();
+    double totalFee = 0;
+    if (lista->getData() != NULL) {
+        aux = lista;
+        while (aux->getData() != NULL)
+        {
+            TransactionData* data = aux->getData();
+            totalFee += data->fee;
+            if (aux->getSiguiente() != NULL) {
+                aux = aux->getSiguiente();
+            }
+            else if (aux->getSiguiente() == NULL) {
+                break;
+            }
+        }
+    }
+    this->fee = totalFee;
 }
 
-//Minado de Blocke
-//ESTUDIAR PORQUE SE VUELVE ETERNO EL BUCCLE
+//Funciones de acceso publico
 void Block::MineBlock(uint32_t nDifficulty) {
     stringstream ss;
     for (uint32_t i = 0; i < nDifficulty; ++i)
@@ -42,32 +88,21 @@ void Block::MineBlock(uint32_t nDifficulty) {
     ss << "\0";
     string str(ss.str());
    
-    if (data.receiverKey != "genesis") {
+    
         do {
             _nNonce+= 1;
             blockHash = _CalculateHash();
             cout << blockHash << "++++++++++++++++" << _nNonce << endl;
         } while (blockHash.substr(0, nDifficulty) != str);
-        transacciones++;
+        transactions++;
         cout << "Block mined: " << blockHash << endl;
-    }
-    else if (data.receiverKey == "genesis") {
-        blockHash = _CalculateHash();
-    }
+    
+
 }
 
-inline string Block::_CalculateHash() const {
 
-    std::string toHashS = std::to_string(data.amount) + data.receiverKey + data.senderKey + std::to_string(data.timestamp) + std::to_string(_nNonce);
-    std::hash<std::string> tDataHash;
-    std::hash<std::string> prevHash;
 
-    string limitHash = to_string(tDataHash(toHashS) ^ (prevHash(previousHash)) << 1);
-    string sha256 = SHA256::cifrar(limitHash);
-    return sha256;
-}
 
-//Funciones de acceso publico
 string Block::getHash() const
 {
     return blockHash;
@@ -82,4 +117,18 @@ string Block::getPreviousHash() const
 bool Block::isHashValid() const
 {
     return _CalculateHash() == getHash();
+}
+
+int Block::getIndex()const
+{
+    return index;
+}
+
+int64_t Block::getNonce() const
+{
+    return _nNonce;
+}
+
+double Block::getFeeBlock() {
+    return fee;
 }
