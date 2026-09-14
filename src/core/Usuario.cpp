@@ -5,9 +5,8 @@
 #include <stdio.h>
 
 Usuario::Usuario() {
-	fflush(stdin);
-	//ESTUDIAR LLAVES PRIVADAS Y SINO TENER 2
-	privateKey = 100000;
+	srand((unsigned)time(nullptr));
+	privateKey = 100000 + (rand() % 900000);
 	stringstream ss;
 	ss << privateKey;
 	std::hash<std::string> tDataHash;

@@ -1,6 +1,8 @@
 #include <iostream>
 #include <ctime>
 #include <vector>
+#include <limits>
+#include <cstdlib>
 #include "Usuario.h" 
 #include "Blockchain.h" 
 
@@ -15,7 +17,23 @@ void loginAcount(Usuario*& x, ListTransactions *& lista);
 void inAcoint();
 void Transaction(ListTransactions *& lista);
 void closeBlockChain(Blockchain awesomeCoin, ListTransactions *& lista);
- 
+
+//Limpieza de pantalla portable (Windows/Linux)
+void limpiarPantalla() {
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
+
+//Pausa portable (sustituye a _getch() de conio.h de Windows)
+void pausar() {
+    cout << "\nPresione ENTER para continuar...";
+    cin.ignore();
+    cin.get();
+}
+
 int orden;
 
 void ingresoCuenta(){
@@ -48,7 +66,7 @@ Usuario* registerAcount() {
 
 void loginAcount(Usuario *&x,ListTransactions *& lista) {
     if (x != NULL) {
-        system("cls");
+        limpiarPantalla();
         do {
             inAcoint();
             switch (orden)
@@ -59,7 +77,7 @@ void loginAcount(Usuario *&x,ListTransactions *& lista) {
                 break;
             }
 
-            system("cls");
+            limpiarPantalla();
              
         } while (orden != 2);
     }
@@ -85,7 +103,7 @@ void Transaction(ListTransactions *&lista) {
         lista->setTransactionLista(data1);
     }
 
-    _getch();
+    pausar();
 }
 
 void closeBlockChain(Blockchain awesomeCoin,ListTransactions *& lista){
@@ -108,7 +126,7 @@ void closeBlockChain(Blockchain awesomeCoin,ListTransactions *& lista){
     }
 
     //HACER Intentamos alterar la cadena 
-    _getch();
+    pausar();
 
 }
 
@@ -136,11 +154,12 @@ int main()
             break;
         }
      
-        system("cls");
-        fflush(stdin);
+        limpiarPantalla();
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
     } while (orden != 3);
     closeBlockChain(awesomeCoin, lista);
 
-    _getch();
+    pausar();
     return 0;
 }
