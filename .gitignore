@@ -1,0 +1,57 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+bin/
+obj/
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dll
+
+# Debug / release
+Debug/
+Release/
+
+# IDEs
+.vscode/
+.idea/
+.vs/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+install_manifest.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Generated blockchain data
+*.db
+*.sqlite
+*.sqlite3
+
+# Clang / GCC artifacts
+*.d
