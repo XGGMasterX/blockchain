@@ -1,5 +1,4 @@
 #include <iostream>
-#include <conio.h>
 #include <stdint.h>
 
 #ifndef TransactionData_h
@@ -16,7 +15,7 @@ struct TransactionData
     std::string receiverKey;
     time_t timestamp;
 
-    TransactionData* _ComprobationKey(double amt, double fee, std::string sender, std::string receiver, time_t time, int pKyComprobation) {
+    static TransactionData* _ComprobationKey(double amt, double fee, std::string sender, std::string receiver, time_t time, int pKyComprobation) {
         //COMPROBAR PRIVADA OBTENIDA HASHEANDO Y VERIFICANDO CON SENDERKEY
 
         return new TransactionData(amt, fee, sender, receiver, time, pKyComprobation);
@@ -36,6 +35,7 @@ struct TransactionData
         privateKeyComprobation = pKyComprobation;
     };
 };
+;
 
 
 struct NodoTransaction {
@@ -72,7 +72,7 @@ public:
     }
 };
 
-static class ListTransactions {
+class ListTransactions {
 private:
     NodoTransaction* lista;
 
@@ -98,31 +98,31 @@ public:
     }
 
     void writeLista() {
-        if (lista->getSiguiente() != NULL) {
-
-            NodoTransaction* nodo = new NodoTransaction();
-            nodo = lista;
-            do
-            {
-                //ARREGLAR ESCRITURA DE LOS DATOS PRINCIPALES DEL BLOQUE
-                printf("\nAmount: %f", nodo->getData()->amount);
-                printf("\nSenderKey: %s", nodo->getData()->senderKey.c_str());
-                printf("\nReceiverKey: %s", nodo->getData()->receiverKey.c_str());
-                printf("\nTimestamp: %d", (int)nodo->getData()->timestamp);
-
-                nodo = nodo->getSiguiente();
-            } while (nodo != NULL);
-        }
-        else if (lista->getData() != NULL && lista->getSiguiente() == NULL) {
-            printf("\nAmount: %f", lista->getData()->amount);
-            printf("\nSenderKey: %s", lista->getData()->senderKey.c_str());
-            printf("\nReceiverKey: %s", lista->getData()->receiverKey.c_str());
-            printf("\nTimestamp: %d", (int)lista->getData()->timestamp);
+        NodoTransaction* nodo = lista;
+        while (nodo != NULL && nodo->getData() != NULL) {
+            //ARREGLAR ESCRITURA DE LOS DATOS PRINCIPALES DEL BLOQUE
+            printf("\nAmount: %f", nodo->getData()->amount);
+            printf("\nFee: %f", nodo->getData()->fee);
+            printf("\nSenderKey: %s", nodo->getData()->senderKey.c_str());
+            printf("\nReceiverKey: %s", nodo->getData()->receiverKey.c_str());
+            printf("\nTimestamp: %lld", (long long)nodo->getData()->timestamp);
+            printf("\n");
+            nodo = nodo->getSiguiente();
         }
     }
 
     NodoTransaction* getTransactionByPublicKey(std::string publicKey) {
         //MOSTAR TRANSACCION CORRESPONDIENTE
+        NodoTransaction* nodo = lista;
+        while (nodo != NULL) {
+            if (nodo->getData() != NULL &&
+                (nodo->getData()->senderKey == publicKey ||
+                 nodo->getData()->receiverKey == publicKey)) {
+                return nodo;
+            }
+            nodo = nodo->getSiguiente();
+        }
+        return NULL;
     }
 };
 

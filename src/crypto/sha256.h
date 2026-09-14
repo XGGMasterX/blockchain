@@ -1,6 +1,6 @@
 // Creado por: Gerard (Gerry Studios)
 // Actualizado: 6 de julio de 2020
-// NOTA: utiliza uint32_t para todos los elementos para usar siempre 32 bits (módulo 2^32)
+// NOTA: utiliza uint32_t para todos los elementos para usar siempre 32 bits (mï¿½dulo 2^32)
 
 #pragma once
 
@@ -42,7 +42,7 @@ uint32_t K[64] = {
 uint32_t H[8] = H_INICIAL;
 
 /*********************/
-// representación binaria de un número
+// representaciï¿½n binaria de un nï¿½mero
 string int2bin(int n, int bits = 8) {
 	string r = string(bits, '0');
 	while (n) {
@@ -61,10 +61,10 @@ string msg2bin(string t) {
 // binario a entero
 int bin2int(string b) {
 	int r = 0;
-	for (int i = 0; i < b.length(); i++) r += b.at(b.length() - 1 - i) == '1' ? pow(2, i) : 0;
+	for (int i = 0; i < (int)b.length(); i++) r += b.at(b.length() - 1 - i) == '1' ? pow(2, i) : 0;
 	return r;
 }
-// representación hexadecimal
+// representaciï¿½n hexadecimal
 string toHEX(uint32_t n, int digits) {
 	string res = string(digits, '0');
 	int ind = -1, mod = 0;
@@ -82,7 +82,7 @@ struct SHA256 {
 	static string cifrar(string t);
 };
 
-// función hash de SHA256
+// funciï¿½n hash de SHA256
 string SHA256::cifrar(string t) {
 	uint32_t ini[] = H_INICIAL;
 	for (int i = 0; i < 8; i++) H[i] = ini[i];
@@ -94,7 +94,7 @@ string SHA256::cifrar(string t) {
 
 	// dividimos en bloques de 512 bits
 	vector<vector<int>> M = vector<vector<int>>();
-	for (int i = 0; i < msg.length(); i += 512) {
+	for (int i = 0; i < (int)msg.length(); i += 512) {
 		vector<int> trozo = vector<int>(16);
 		string sub_msg = msg.substr(i, 512);
 
@@ -125,7 +125,7 @@ string SHA256::cifrar(string t) {
 			b = a;
 			a = T1 + T2;
 
-			// descomentar esto para ver cada iteración
+			// descomentar esto para ver cada iteraciï¿½n
 			/*cout << "t=" << i << " => ";
 			cout << toHEX(a,8) << "  ";
 			cout << toHEX(b,8) << "  ";

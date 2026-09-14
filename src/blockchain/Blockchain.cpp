@@ -95,7 +95,7 @@ void Blockchain::printChain() {
         if (currentBlock->listTransactions->getLista()->getData()->senderKey != "Genesis") {
             currentBlock->listTransactions->writeLista();
         }
-        printf("\nNonce: %zu", currentBlock->getNonce());
+        printf("\nNonce: %lld", (long long)currentBlock->getNonce());
         std::cout << endl;
         std::cout << "FeeBlock: " << currentBlock->getFeeBlock() << endl;
         std::cout << "Hash: " << currentBlock->getHash() << endl;
