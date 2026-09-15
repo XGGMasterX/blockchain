@@ -24,10 +24,12 @@ El proyecto surgió como práctica académica (originalmente `Project2` en Visua
 - ⛏️ **Minado PoW**: se incrementa el *nonce* hasta hallar un hash cuyo prefijo hexadecimal empiece por tantos `0` como marca la dificultad (`2` por defecto → prefijo `00`).
 - #️⃣ **SHA-256 implementado a mano** (`src/crypto/sha256.h`): padding, expansión de palabras, 64 rondas de compresión y salida hexadecimal de 64 caracteres.
 - 🔗 **Encadenado y validación**: cada bloque referencia el hash del anterior; `isChainValid()` recalcula todos los hashes y comprueba los enlaces.
-- 💸 **Comisiones (fee)**: cada transferencia lleva comisión para el minero; el bloque acumula el total (`FeeBlock`).
-- 👤 **Cuentas**: clave privada aleatoria de 6 dígitos y clave pública derivada con hash.
+- 🔑 **Claves reales y sesión**: la clave pública (derivada por SHA-256) es la dirección on-chain; el acceso a la cartera exige la clave privada (`login`), y las transferencias se firman con la clave del emisor — las inválidas se consignan como `[FIRMA_INVALIDA]`.
+- 💰 **Balances**: cada transacción liquida sus montos al minar el bloque (`senderAmount` / `receiverAmount`) y el bloque acumula las comisiones (`FeeBlock`) para el minero.
+- 👛 **Cartera** (`src/core/Cuenta.h`): wallet con validación de clave privada en el registro y consulta de saldos por dirección.
 - 🖥️ **CLI interactiva** multiplataforma (sin `conio.h` ni dependencias de Windows).
 - 🧾 **Lista de transacciones pendientes** (lista enlazada propia) que se consolida en un único bloque al salir.
+- 🧪 **Suite de pruebas** en `tests/`: SHA-256 contra vectores oficiales FIPS 180-4 (NIST) y casos de cadena, PoW, balances, firmas e inmutabilidad.
 
 ## 📋 Requisitos
 
@@ -50,7 +52,8 @@ g++ -std=c++17 -O2 -Wall -Wextra \
     src/main.cpp \
     src/blockchain/Block.cpp \
     src/blockchain/Blockchain.cpp \
-    src/core/Usuario.cpp
+    src/core/Usuario.cpp \
+    src/crypto/sha256.cpp
 
 ./blockchain
 ```
@@ -62,15 +65,37 @@ g++ -std=c++17 -O2 -Wall -Wextra `
     -Isrc/core -Isrc/blockchain -Isrc/crypto `
     -o blockchain.exe `
     src/main.cpp src/blockchain/Block.cpp `
-    src/blockchain/Blockchain.cpp src/core/Usuario.cpp
+    src/blockchain/Blockchain.cpp src/core/Usuario.cpp `
+    src/crypto/sha256.cpp
 
 .\blockchain.exe
 ```
 
 > **Notas de compilación**
-> - `src/core/Cuenta.cpp` y `src/crypto/sha256.cpp` están vacíos por ahora (módulos reservados); no hace falta compilarlos.
-> - La versión original usaba cabeceras exclusivas de Windows (`conio.h`, `_getch()`, `system("cls")`); el código actual es portable y usa ramas condicionales `#ifdef _WIN32`.
+> - Todo el código es C++17 estándar y portable: sin `conio.h` ni dependencias de Windows (ramas `#ifdef _WIN32` para `cls`/`clear`).
+> - `src/crypto/sha256.h` implementa el hash en la propia cabecera con un guard de inclusión; `sha256.cpp` compila la unidad coherente.
 > - El proyecto compila **sin errores y sin warnings** con `-Wall -Wextra` (verificado con GCC 15).
+
+## 🧪 Pruebas
+
+El proyecto incluye una suite en `tests/` con vectores oficiales de SHA-256 (FIPS 180-4) y casos de cadena, PoW, balances, firmas y mutaciones:
+
+```bash
+# SHA-256 contra los vectores oficiales FIPS 180-4 (NIST)
+g++ -std=c++17 -O2 -Wall -Wextra -Isrc/crypto \
+    -o test_sha256 tests/test_sha256.cpp src/crypto/sha256.cpp
+./test_sha256
+
+# Blockchain: genesis, PoW, encadenado, comisiones, balances, firmas e inmutabilidad
+g++ -std=c++17 -O2 -Wall -Wextra \
+    -Isrc/core -Isrc/blockchain -Isrc/crypto \
+    -o test_blockchain tests/test_blockchain.cpp \
+    src/blockchain/Block.cpp src/blockchain/Blockchain.cpp \
+    src/core/Usuario.cpp src/crypto/sha256.cpp
+./test_blockchain
+```
+
+Salida esperada en ambos: `TODOS LOS TESTS PASARON` (16 comprobaciones en total).
 
 ## 🎮 Uso
 
@@ -85,8 +110,8 @@ Salir--(3)
 
 | Opción | Acción |
 |---|---|
-| `1` | **Crear cuenta** — genera clave privada aleatoria (6 dígitos) y su clave pública derivada por hash. Guárdalas: se muestran una sola vez. |
-| `2` | **Ingresar en cuenta** — abre el submenú de transacciones. |
+| `1` | **Crear cuenta** — genera clave privada aleatoria (6 dígitos) y su clave pública derivada por **SHA-256**. Guárdalas: se muestran una sola vez. |
+| `2` | **Ingresar en cuenta** — pide la **clave privada** y valida la sesión (`login`); sin ella no hay cartera. |
 | `3` | **Salir** — mina el bloque con todas las transacciones pendientes, imprime la cadena y la valida. |
 
 Dentro de una cuenta:
@@ -99,47 +124,54 @@ Salir--(2)
 
 | Opción | Acción |
 |---|---|
-| `1` | Registrar una transferencia: pide **monto** y **comisión del minero**. Se acumula en la lista pendiente. |
+| `1` | Registrar una transferencia: pide **dirección del receptor** (su clave pública), **monto** y **comisión del minero**. Se acumula en la lista pendiente. |
 | `2` | Volver al menú principal. |
 
 ### Ejemplo de sesión
 
 ```text
 Que desea realizar ? Crear Cuenta--(1)
-Tu clave privada es: 483920 Guardala en un lugar seguro
-Tu clave publica es: 197384655... Guardala para evitar errores
+Cuenta creada con exito.
+Tu clave privada es: 297046 - Guardala en un lugar seguro, no se volvera a mostrar.
+Tu clave publica (direccion) es: 8bbebe80e7762f0e404a80a3ed5fa113eeedf124d9914bba4b9c5e7c31519c26
 
 Que desea realizar ? Ingresar en Cuenta--(2)
+Ingresa tu clave privada: 297046
+Sesion abierta. Bienvenido de vuelta.
+
 Que desea realizar ? Realizar Transferencia--(1)
-Cuanto dinero desea enviar ?: 99.99
-Cuanta Comision desea darle al minero ?: 0.25
+Direccion del receptor (clave publica): 8bbebe80e7762f0e404a80a3ed5fa113eeedf124d9914bba4b9c5e7c31519c26
+Cuanto dinero desea enviar ?: 150
+Cuanta Comision desea darle al minero ?: 5
 
 Presione ENTER para continuar...
 
 Que desea realizar ? Salir--(3)
 
-008ceccb5cacc735e6eaae02e835861f554b66d7ba4c233204bcaa350556c60d++++++++++++++++18
-Block mined: 008ceccb5cacc735e6eaae02e835861f554b66d7ba4c233204bcaa350556c60d
+00f0d8bb121ea2e8e1f88f3c661227b5e221932da14333063094f7a882b3e556++++++++++++++++13
+Block mined: 00f0d8bb121ea2e8e1f88f3c661227b5e221932da14333063094f7a882b3e556
 
 Block ===================================
 Index: 0
 Nonce: 0
 FeeBlock: 0
-Hash: f0bc3794128101cae0e54ba7cc25c60d9e435ca422246e7bd6c7e4000c5c5cf4
+Hash: 7c5fd242e40ab6f87ed0fa2ce7ab7b2a22962dfbe1d09bb4a15be844016720be
 Previous Hash: 0
 Is Block Valid?: 1
 
 Block ===================================
 Index: 1
-Amount: 99.990000
-Fee: 0.250000
-SenderKey: Joe
-ReceiverKey: Sally
-Timestamp: 1789383978
-Nonce: 18
-FeeBlock: 0.25
-Hash: 008ceccb5cacc735e6eaae02e835861f554b66d7ba4c233204bcaa350556c60d
-Previous Hash: f0bc3794128101cae0e54ba7cc25c60d9e435ca422246e7bd6c7e4000c5c5cf4
+Amount: 150.000000
+Fee: 5.000000
+SenderKey: 8bbebe80e7762f0e404a80a3ed5fa113eeedf124d9914bba4b9c5e7c31519c26
+ReceiverKey: 8bbebe80e7762f0e404a80a3ed5fa113eeedf124d9914bba4b9c5e7c31519c26
+SenderBalance: -150.000000
+ReceiverBalance: 150.000000
+Timestamp: 1789437987
+Nonce: 13
+FeeBlock: 5
+Hash: 00f0d8bb121ea2e8e1f88f3c661227b5e221932da14333063094f7a882b3e556
+Previous Hash: 7c5fd242e40ab6f87ed0fa2ce7ab7b2a22962dfbe1d09bb4a15be844016720be
 Is Block Valid?: 1
 
 Is chain still valid? 1
@@ -165,19 +197,21 @@ blockchain/
 ├── README.md                      ← este archivo
 ├── docs/
 │   └── ARCHITECTURE.md            ← arquitectura técnica completa
+├── tests/
+│   ├── test_sha256.cpp            ← vectores oficiales SHA-256 (FIPS 180-4)
+│   └── test_blockchain.cpp        ← genesis, PoW, balances, firmas, mutaciones
 ├── config/                        (reservado)
 ├── examples/                      (reservado)
 ├── scripts/                       (reservado)
-├── tests/                         (reservado)
 └── src/
     ├── main.cpp                   ← CLI: menús, sesión y cierre de cadena
     ├── blockchain/
     │   ├── Blockchain.h/.cpp      ← cadena, génesis, minado y validación
-    │   ├── Block.h/.cpp           ← bloque: hash, PoW y comisiones
-    │   └── TransactionData.h      ← transacción + lista enlazada
+    │   ├── Block.h/.cpp           ← bloque: hash, PoW, fee y liquidación
+    │   └── TransactionData.h      ← transacción + saldos + lista enlazada
     ├── core/
-    │   ├── Usuario.h/.cpp         ← cuentas: claves pública/privada
-    │   └── Cuenta.h/.cpp          (reservado — cartera)
+    │   ├── Usuario.h/.cpp         ← identidad: claves SHA-256, sesión y saldo
+    │   └── Cuenta.h               ← cartera: wallet y balances
     └── crypto/
         └── sha256.h/.cpp          ← SHA-256 implementado desde cero
 ```
@@ -200,18 +234,17 @@ crypto/sha256 (hash)
 
 ## 🗺️ Roadmap
 
-Tareas pendientes marcadas en los comentarios del propio código:
-
-- [ ] **Balances**: efectuar el intercambio de montos al minar el bloque (`Blockchain.cpp`, todo `EFECTUAR INTERCAMBIO DE MONTOS`) y conectar la clase `Usuario`/`Cuenta`.
-- [ ] **Transacciones reales**: usar la clave pública del usuario logueado como `senderKey` en vez de los remitentes de prueba (`"Joe"`/`"Sally"`) y validar firma (`_ComprobationKey`, todo `COMPROBAR PRIVADA`).
+- [x] **Transacciones reales**: la transferencia usa la clave pública del usuario logueado como `senderKey` (verificación de sesión por clave privada) y las firmas inválidas se consignan con `LLAVE_FALLIDA` (`_ComprobationKey`).
+- [x] **Balances**: cada transacción liquida `senderAmount`/`receiverAmount` al minar el bloque (`EFECTUAR INTERCAMBIO DE MONTOS`) y `Cuenta` expone la cartera.
+- [x] **Hash portable**: el bloque se hashea directamente con SHA-256, sin el `std::hash` intermedio (no estándar) → hashes reproducibles entre plataformas.
+- [x] **Pruebas**: `tests/` con vectores oficiales SHA-256 (FIPS 180-4) y casos de cadena, PoW, balances, firmas y mutaciones.
 - [ ] **Múltiples bloques**: hoy la consola consolida todo en un bloque al salir; permitir cerrar/minar bloques de forma incremental.
 - [ ] **Persistencia**: volcar la cadena a disco (`*.json`, SQLite) — `.gitignore` ya reserva rutas `*.db`.
-- [ ] **Pruebas**: poblar `tests/` con casos de validación de cadena, mutaciones y SHA-256 contra vectores oficiales NIST.
-- [ ] **Mejoras**: reemplazar `std::hash` intermedio por SHA-256 directo, `system("clear")` por códigos ANSI, smart pointers para la propiedad de bloques.
+- [ ] **Mejoras**: `system("clear")` por códigos ANSI, smart pointers para la propiedad de bloques y una criptografía de firma real (ECDSA/Ed25519).
 
 ## ⚠️ Advertencia
 
-Proyecto **educativo**: la implementación criptográfica y el consenso son simplificados (PoW de dificultad 2, SHA-256 con `std::hash` intermedio, cadena en memoria). **No usar en producción ni manejar valor real.**
+Proyecto **educativo**: la implementación criptográfica y el consenso son simplificados (PoW de dificultad 2, SHA-256 didáctico con bits como texto, cadena en memoria, firma por hash de la clave privada en lugar de ECDSA). **No usar en producción ni manejar valor real.**
 
 ## 📄 Licencia
 

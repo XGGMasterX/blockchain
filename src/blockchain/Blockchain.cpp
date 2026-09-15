@@ -25,7 +25,10 @@ Block* Blockchain::createGenesisBlock()
     
     ListTransactions* genesisTransactionList = new ListTransactions();
     TransactionData* d = NULL;
-    d = d->_ComprobationKey(0, 0, "Genesis", "Genesis", time(&current), 0);
+    // Transaccion ancla: firmada por el protocolo (pKyComprobation = 1).
+    // No es una transferencia de usuario: es el punto de partida confiable
+    // de la cadena, sin validacion de fondos ni firma externa.
+    d = d->_ComprobationKey(0, 0, "Genesis", "Genesis", time(&current), 1);
     genesisTransactionList->setTransactionLista(d);
 
     Block* genesis = new Block(0, genesisTransactionList, "0",0);
@@ -39,7 +42,9 @@ Block* Blockchain::getLatestBlock()
 }
 
 //Funcion para agregar nuevos bloques a la cadena
-//VERIFICAR MONTO DE LA DIRECCION
+//VERIFICAR MONTO DE LA DIRECCION: cada TransactionData lleva sus saldos
+//(senderAmount/receiverAmount) actualizados por transaccion; el bloque
+//consolida los intercambios al minar (Block::listTransactions->liquidarMontos).
 void Blockchain::addBlock(ListTransactions* list)
 {
     std::string previousHash;
@@ -89,9 +94,10 @@ void Blockchain::printChain() {
     for (it = chain.begin(); it != chain.end(); ++it)
     {   
         printf("\n\nBlock ===================================");
-        //ARREGLAR ESCRITURA DE LOS DATOS PRINCIPALES DEL BLOQUE
         Block* currentBlock = *it;
         printf("\nIndex: %d", currentBlock->getIndex());
+        // El genesis no imprime su lista: contiene la transaccion ancla
+        // Genesis->Genesis, sin datos de usuario.
         if (currentBlock->listTransactions->getLista()->getData()->senderKey != "Genesis") {
             currentBlock->listTransactions->writeLista();
         }

@@ -15,6 +15,9 @@ Block::Block(int idx, ListTransactions* list, string prevHash,int nonce)
     previousHash = prevHash;
     _nNonce = nonce;
     transactions = 0;
+    //EFECTUAR INTERCAMBIO DE MONTOS AL MINAR BLOQUE: el bloque liquida los
+    //montos de sus transacciones (sender/receiver) al consolidarse en cadena.
+    listTransactions->liquidarMontos();
     _CalculateFee();
     this->blockHash = _CalculateHash();
 }
@@ -36,14 +39,11 @@ string Block::_CalculateHash() const {
     ss << std::to_string(fee) << std::to_string(_nNonce);
     std::string toHashS = ss.str();
 
-    std::hash<std::string> tDataHash;
-    std::hash<std::string> prevHash;
-
-    string limitHash = to_string(tDataHash(toHashS) ^ (prevHash(previousHash) << 1));
-    string sha256 = SHA256::cifrar(limitHash);
-    return sha256;
+    // HASH DIRECTO: SHA-256 sobre previousHash + datos del bloque. Se elimina
+    // el std::hash intermedio: no era portable entre plataformas (su algoritmo
+    // no esta especificado por el estandar) ni criptograficamente solido.
+    return SHA256::cifrar(previousHash + toHashS);
 }
-
 void Block::_CalculateFee(){
     NodoTransaction* aux = listTransactions->getLista();
     double totalFee = 0;
