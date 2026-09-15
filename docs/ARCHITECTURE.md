@@ -28,7 +28,7 @@ AwesomeCoin es una blockchain educativa de **un solo nodo**, **en memoria** y co
 | Capa | Ubicación | Responsabilidad |
 |---|---|---|
 | Presentación | `src/main.cpp` | Menús de consola, sesión de usuario, lectura validada de datos, cierre de la cadena |
-| Identidad | `src/core/` | Generación de claves del usuario (`Usuario`) y módulo reservado de cartera (`Cuenta`) |
+| Identidad | `src/core/` | Claves, sesión y saldo del usuario (`Usuario`) y cartera (`Cuenta`) |
 | Núcleo blockchain | `src/blockchain/` | Cadena (`Blockchain`), bloques (`Block`), transacciones (`TransactionData`, `ListTransactions`) |
 | Primitivas cripto | `src/crypto/sha256.h` | Función hash SHA-256 implementada desde cero (educativa) |
 
@@ -74,6 +74,8 @@ classDiagram
         +publicKey : string
         +amount : double
         -privateKey : int
+        +login(privKey : string) bool$
+        +getAmount() double
         +reciveAmount(r : int)
         +enviarAmount(r : int, key : string)
     }
@@ -116,6 +118,7 @@ classDiagram
         +setLista(otra : ListTransactions*)
         +writeLista()
         +getTransactionByPublicKey(publicKey : string) NodoTransaction*
+        +liquidarMontos()
     }
 
     class NodoTransaction {
@@ -133,8 +136,15 @@ classDiagram
         +senderKey : string
         +receiverKey : string
         +timestamp : time_t
+        +senderAmount : double
+        +receiverAmount : double
+        +LLAVE_FALLIDA : string$
         -privateKeyComprobation : int
         +_ComprobationKey(...) TransactionData$
+        +receiveAmount(amt : double)
+        +sendAmount(amt : double)
+        +getSenderAmount() double
+        +getReceiverAmount() double
     }
 
     class SHA256 {
@@ -149,7 +159,7 @@ classDiagram
     Block ..> SHA256 : usa
 ```
 
-> `Usuario` aún no se conecta al núcleo: sus métodos `reciveAmount`/`enviarAmount` están declarados pero sin implementar (ver [§13](#13-limitaciones-conocidas)).
+> `Usuario` se conecta al núcleo desde la CLI: la sesión (`login` por clave privada) firma las transferencias con su clave pública; los balances on-chain los liquida el bloque al minar. La cartera (`Cuenta`) expone los saldos por dirección.
 
 ## 4. Módulos en detalle
 
@@ -186,7 +196,7 @@ Programa interactivo con funciones libres que orquestan la sesión:
 
 | Método | Descripción |
 |---|---|
-| `Block(idx, list, prevHash, nonce)` (ctor) | Copia la lista de transacciones, fija índice/nonce/hash previo, calcula **fee** y **hash** (en ese orden: el hash incluye el fee). |
+| `Block(idx, list, prevHash, nonce)` (ctor) | Copia la lista de transacciones, fija índice/nonce/hash previo, **liquida los montos** de sus transacciones (`liquidarMontos`), calcula **fee** (solo transacciones con firma válida; las marcadas `LLAVE_FALLIDA` no abonan comisión) y **hash** (en ese orden: el hash incluye el fee). |
 | `_CalculateFee()` (privado) | Recorre la lista sumando `TransactionData::fee` → `Block::fee`. |
 | `_CalculateHash()` (privado) | Pipeline de hashing; ver [§5](#5-pipeline-de-hashing). |
 | `MineBlock(nDifficulty)` | PoW: incrementa `_nNonce` y recalcula el hash hasta que el prefijo hexadecimal sea `nDifficulty` ceros. Ver [§6](#6-prueba-de-trabajo-pow). |
@@ -199,13 +209,16 @@ Miembros públicos por diseño didáctico: `transactions` (contador de bloques m
 
 Cabecera única con tres tipos:
 
-- **`TransactionData`** — struct de datos puro: `amount`, `fee`, `senderKey`, `receiverKey`, `timestamp` (+ campo privado `privateKeyComprobation`, aún sin usar). Su constructor es privado; la **fábrica estática** `_ComprobationKey(...)` es la única vía de instanciación (punto previsto para validar la clave antes de emitir).
+- **`TransactionData`** — datos de la transacción: `amount`, `fee`, `senderKey`, `receiverKey`, `timestamp`, **saldos liquidados** (`senderAmount`/`receiverAmount`) y campo privado `privateKeyComprobation`. Su constructor es privado; la **fábrica estática** `_ComprobationKey(...)` es la única vía de instanciación y **valida la firma** de la clave privada contra la clave pública del emisor: con verificación fallida (pKyComprobation = 0) la transacción se emite con `senderKey = LLAVE_FALLIDA` (`"[FIRMA_INVALIDA]"`) — sigue encadenada (la integridad de la cadena manda) pero sin comisión ni abono. Métodos de balances: `receiveAmount`/`sendAmount`/`getSenderAmount`/`getReceiverAmount`.
 - **`NodoTransaction`** — nodo de lista enlazada: envuelve `TransactionData*` y puntero `siguiente`, con getters protegidos contra `NULL`.
-- **`ListTransactions`** — la lista enlazada en sí (inserción por cabeza → **orden LIFO**): `setTransactionLista` apila, `writeLista` imprime todas las transacciones y `getTransactionByPublicKey` devuelve el primer nodo que envía o recibe esa clave.
+- **`ListTransactions`** — la lista enlazada en sí (inserción por cabeza → **orden LIFO**): `setTransactionLista` apila, `writeLista` imprime todas las transacciones (incluidos los saldos liquidados), `getTransactionByPublicKey` devuelve el primer nodo que envía o recibe esa clave y **`liquidarMontos()` efectúa el intercambio de montos** (débito del emisor + crédito del receptor) — la invoca el bloque al minar.
 
-### 4.5 `src/core/Usuario.{h,cpp}` — Identidad
+### 4.5 `src/core/Usuario.{h,cpp}` — Identidad y sesión
 
-El constructor genera una **clave privada aleatoria de 6 dígitos** (`100000 + rand() % 900000`, sembrada con `srand(time(nullptr))`), la serializa y le aplica `std::hash<std::string>` para derivar la **clave pública** decimal. Ambas se muestran por consola una única vez. `amount`, `reciveAmount()` y `enviarAmount()` están declarados a la espera del sistema de balances.
+El constructor genera una **clave privada aleatoria de 6 dígitos** (`100000 + rand() % 900000`, sembrada con `srand(time(nullptr))`) y deriva la **clave pública** con **SHA-256** — la dirección on-chain del usuario. Ambas se muestran por consola una única vez.
+
+- **`login(privKey)`**: abre la sesión derivando la clave privada por SHA-256 y comparando con la pública; una clave incorrecta no da acceso a la cartera (y sin sesión las transferencias se consignarían con firma inválida).
+- **`getAmount()` / `reciveAmount()` / `enviarAmount()`**: saldo de la cartera y primitivas de débito/crédito (los intercambios on-chain ocurren al minar, en `Block`).
 
 ### 4.6 `src/crypto/sha256.h` — SHA-256 educativo
 
@@ -219,35 +232,44 @@ Implementación autónoma (constantes `K[64]`, IV `H_INICIAL`, macros `SR`, `Ch`
 
 > Implementación **didáctica** (bits representados como texto): correcta como ejercicio, pero órdenes de magnitud más lenta y sin resistencia a side-channels. Para producción, usar OpenSSL o similar.
 
+### 4.7 `src/core/Cuenta.h` — Cartera
+
+Wallet de saldo por dirección, construida con **constructor privado + factories estáticas** (mismo patrón que `TransactionData`):
+
+- **`crear(privKey, publicKey)`**: punto de entrada de carteras al registrarse; valida que la clave privada derive por SHA-256 en la clave pública. Devuelve `NULL` si la clave no corresponde.
+- **`cargar(publicKey, amt)`**: consulta de saldo de una dirección conocida (explorador/persistencia futura).
+- **`walletAddress(publicKey)`**: la dirección on-chain de una cartera es su clave pública.
+- **`getBalance()` / `receive()`**: saldo y acreditación; el débito ocurre on-chain al minar (`Block`).
+
 ## 5. Pipeline de hashing
 
 El hash de un bloque se calcula sobre esta concatenación exacta:
 
 ```
-para cada transacción (desde la cabeza de la lista):
-    amount (to_string double) + receiverKey + senderKey + timestamp (to_string)
-se añade al final:
-    fee (to_string double) + nonce (to_string int64)
+SHA-256( previousHash + Σ transacciones + fee + nonce )
+
+donde la concatenación interna es:
+    previousHash
+    para cada transacción (desde la cabeza de la lista):
+        amount (to_string double) + receiverKey + senderKey + timestamp (to_string)
+    se añade al final:
+        fee (to_string double) + nonce (to_string int64)
 ```
 
 ```mermaid
 flowchart LR
-    A["Transacciones<br/>amount+receiver+sender+ts"] --> B["stringstream<br/>+ fee + nonce"]
-    B --> C["toHashS<br/>(string de datos)"]
-    C --> D["std::hash&lt;string&gt;<br/>tDataHash(toHashS)"]
-    E["previousHash"] --> F["std::hash&lt;string&gt;<br/>prevHash(previousHash)"]
-    D --> G["XOR<br/>tDataHash ^ (prevHash &lt;&lt; 1)"]
-    F --> G
-    G --> H["to_string<br/>(decimal)"]
-    H --> I["SHA256::cifrar<br/>(implementación propia)"]
-    I --> J["blockHash<br/>64 hex"]
+    E[\"previousHash\"] --> B
+    A[\"Transacciones<br/>amount+receiver+sender+ts\"] --> B[\"stringstream<br/>+ fee + nonce\"]
+    B --> C[\"toHashS<br/>(string de datos)\"]
+    C --> I[\"SHA256::cifrar<br/>(implementación propia)\"]
+    I --> J[\"blockHash<br/>64 hex\"]
 ```
 
 **Propiedades resultantes:**
 
+- **Hashing directo**: el bloque se hashea con **SHA-256 puro** sobre `previousHash + datos` — sin etapas intermedias. El antiguo paso con `std::hash<std::string>` (no especificado por el estándar, distinto entre libstdc++/MSVC/libc++) fue eliminado, así que **los hashes son portables entre plataformas**: una cadena volcada desde Windows valida igual en Linux.
 - **Efecto avalancha**: cualquier cambio en monto, clave, fee o nonce produce un hash completamente distinto → detecta manipulación.
-- **Encadenado**: `previousHash` entra en la mezcla, así que alterar un bloque invalida **todos** los siguientes.
-- **Determinismo dentro de una plataforma**: el paso intermedio usa `std::hash<std::string>`, cuyo algoritmo **no está especificado por el estándar** y varía entre librerías (libstdc++ / MSVC / libc++). El hash es reproducible en la misma build, pero **no es portable entre plataformas** (ver [§13](#13-limitaciones-conocidas)).
+- **Encadenado**: `previousHash` entra como prefijo de la mezcla, así que alterar un bloque invalida **todos** los siguientes (ver [§13](#13-limitaciones-conocidas)).
 
 ## 6. Prueba de trabajo (PoW)
 
@@ -312,16 +334,18 @@ sequenceDiagram
     Usr-->>U: clave privada + pública
 
     U->>Main: (2) Ingresar
+    Main->>Usr: login(privKey) — SHA-256(privKey) == publicKey ?
+    Usr-->>Main: sesión abierta (o acceso denegado)
     loop cada transferencia
-        U->>Main: monto + comisión
-        Main->>Lista: setTransactionLista(TransactionData)
+        U->>Main: dirección del receptor + monto + comisión
+        Main->>Lista: setTransactionLista(firmada con publicKey del emisor)
     end
     U->>Main: (2) Salir de cuenta
 
     U->>Main: (3) Salir
     Main->>BC: addBlock(lista)
     BC->>B: new Block(idx, lista, hashPrevio, 0)
-    B->>B: _CalculateFee() + _CalculateHash()
+    B->>B: liquidarMontos() + _CalculateFee() + _CalculateHash()
     B->>B: MineBlock(2) ← bucle nonce
     BC->>BC: chain.push_back(bloque)
     Main->>BC: printChain()
@@ -389,8 +413,8 @@ En la práctica, con dificultad 2 y listas pequeñas, todo es instantáneo. El c
 | Decisión | Motivo | Trade-off asumido |
 |---|---|---|
 | Listas enlazadas a mano (`NodoTransaction`) | Práctica académica de estructuras de datos | Más código y riesgo de fugas frente a `std::list` / `std::deque` |
-| Fábrica estática `TransactionData::_ComprobationKey` con ctor privado | Un único punto de emisión de transacciones, pensado para validar la clave antes de crear el objeto | La validación aún no está implementada (fabrica sin comprobar) |
-| Hash en dos etapas (`std::hash` → XOR → SHA-256) | Mezclar el contenido con el hash previo de forma simple | `std::hash` no es portable entre plataformas ni criptográficamente sólido; en cadena solo se usa dentro del mismo proceso |
+| Fábrica estática `TransactionData::_ComprobationKey` con ctor privado | Un único punto de emisión de transacciones que **valida la firma** de la clave privada | Sin criptografía real (ECDSA): la verificación es un hash de sesión; las inválidas se emiten marcadas con `LLAVE_FALLIDA` |
+| Hashing directo con SHA-256 (`previousHash + datos`) | Simplicidad y **portabilidad**: sin `std::hash` intermedio (no estándar), el hash es reproducible entre plataformas | Un solo cómputo SHA-256 por intento de nonce (más trabajo que el antiguo XOR sobre `std::hash`) |
 | Fee incluido en el hash del bloque | El minero no puede alterar comisiones sin invalidar el bloque | — |
 | Génesis no minado | Rapidez; el PoW solo afecta a bloques de usuario | El génesis no cumple la política de prefijo `00` (aceptable: es el ancla de confianza local) |
 | Consolidar todas las pendientes en **un** bloque al salir | Simplificación del flujo de consola | Difiere del modelo real de bloques por tiempo/tamaño; sin recompensa de minado distribuida |
@@ -411,8 +435,8 @@ En la práctica, con dificultad 2 y listas pequeñas, todo es instantáneo. El c
 
 **Qué NO defiende (limitaciones deliberadas):**
 
-- **No hay firmas digitales**: cualquiera puede emitir una transacción con cualquier `senderKey` (`"Joe"` es un literal); `_ComprobationKey` aún no valida nada.
-- **No hay balances/UTXO**: no se comprueba que el emisor tenga fondos (`VERIFICAR MONTO DE LA DIRECCION`, todo en `Blockchain.cpp`).
+- **No hay firmas digitales plenamente criptográficas**: la "firma" es la verificación de sesión (SHA-256 de la clave privada == clave pública) y las transferencias sin sesión válida se consignan con `LLAVE_FALLIDA` (`_ComprobationKey` marca la transacción como inválida, sin comisión ni abono). No hay ECDSA/Ed25519.
+- **Balances informativos, no ejecutivos**: `senderAmount`/`receiverAmount` registran el intercambio liquidado al minar (débito/crédito auditable), pero **no se rechazan transacciones por falta de fondos** — el saldo puede quedar negativo (los comentarios `VERIFICAR MONTO` del código documentan el punto de extensión).
 - **No hay red P2P ni consenso distribuido**: nodo único, la "cadena válida" es la propia.
 - **Claves débiles**: privada de 6 dígitos (~10⁶ combinaciones, fuerza bruta instantánea) y pública derivada con `std::hash` (no criptográfico). Sin `ECDSA`/`Ed25519`.
 - **Sin persistencia**: reiniciar el programa pierde la cadena.
@@ -420,13 +444,13 @@ En la práctica, con dificultad 2 y listas pequeñas, todo es instantáneo. El c
 
 ## 13. Limitaciones conocidas
 
-1. **Portabilidad de hashes entre plataformas**: el `std::hash<std::string>` intermedio varía entre librerías estándar; una cadena volcada desde Windows (MSVC) no validaría en Linux (libstdc++) y viceversa. Solución: hashear directamente el string de datos con SHA-256.
+1. **Portabilidad de hashes resuelta**: el bloque se hashea directamente con SHA-256 (el antiguo `std::hash` intermedio, no portable, fue eliminado); los hashes son reproducibles entre plataformas.
 2. **Un usuario logueado a la vez** (`miCuenta` global); crear otra cuenta sobreescribe el puntero (fuga del anterior, sin liberar).
-3. **Sender/receiver fijos** (`"Joe"`/`"Sally"`): las transferencias no usan aún las claves del usuario registrado.
-4. **`Cuenta` vacía**: la cartera/balances está reservada (`Cuenta.h` sin contenido).
-5. **Sin tests automatizados**: la validación es manual (ejecutar y leer la salida).
-6. **Métodos declarados sin implementar**: `Usuario::reciveAmount`, `Usuario::enviarAmount` — se enlazan bien por no usarse, pero fallaría si se invocaran.
-7. **`sha256.cpp` y `Cuenta.cpp` vacíos**: todo vive en cabeceras; al crecer convendrá mover implementaciones.
+3. **Balances sin rechazo por fondos**: la liquidación registra débitos/créditos, pero un emisor sin saldo produce saldo negativo (no se valida el monto disponible).
+4. **`Cuenta` sin integración total en la CLI**: la cartera (`crear`/`cargar`) está implementada y testeada, pero el menú aún opera sobre `Usuario`.
+5. **Métodos sin uso en producción**: `Cuenta::reciveAmount`/`enviarAmount` y `TransactionData::sendAmount`/`receiveAmount` individuales (la liquidación real la hace `liquidarMontos`).
+6. **SHA-256 en cabecera**: `sha256.h` define la implementación con guard de inclusión; `sha256.cpp` queda como unidad coherente.
+7. **Sin tests automatizados en CI**: la suite existe (`tests/`) pero hay que compilarla y ejecutarla a mano.
 
 ## 14. Portabilidad
 
@@ -437,7 +461,7 @@ En la práctica, con dificultad 2 y listas pequeñas, todo es instantáneo. El c
 | `conio.h` / `_getch()` | ❌ eliminados | ❌ eliminados (portables) |
 | `fflush(stdin)` | ❌ eliminado (UB) | ❌ eliminado (UB) |
 | `%lld` + casts para `time_t`/`int64_t` | ✅ | ✅ |
-| `std::hash<std::string>` | Determinista en la misma build | ⚠️ valores distintos entre plataformas (ver §13.1) |
+| `std::hash<std::string>` | ❌ eliminado del pipeline | ❌ eliminado (hash directo SHA-256 portable) |
 | Compilación verificada | ✅ GCC 15.2, `-Wall -Wextra` limpio | ✅ compatible C++17 estándar |
 
 
