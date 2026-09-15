@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⛓️ AwesomeCoin
+# AwesomeCoin
 
 **Blockchain educativa escrita en C++17 · consola interactiva · prueba de trabajo (PoW) · SHA-256 implementado desde cero**
 
