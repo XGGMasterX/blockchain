@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <math.h>
+#include <cstdint>
 
 #define HEX "0123456789abcdef"
 #define H_INICIAL { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 }
@@ -24,8 +25,9 @@
 using namespace std;
 
 
-// constantes K
-uint32_t K[64] = {
+// constantes K (con prefijo propio: "K" colisiona con los parametros
+// de las macros s0/s1/o0/o1 de arriba)
+inline const uint32_t SHA256_K[64] = {
 	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,
 	0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,
 	0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,
@@ -39,11 +41,11 @@ uint32_t K[64] = {
 	0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 };
 // para los hashes
-uint32_t H[8] = H_INICIAL;
+inline uint32_t H[8] = H_INICIAL;
 
 /*********************/
 // representaci�n binaria de un n�mero
-string int2bin(int n, int bits = 8) {
+inline string int2bin(int n, int bits = 8) {
 	string r = string(bits, '0');
 	while (n) {
 		r.at(--bits) = ((n & 1) + 48);
@@ -53,19 +55,19 @@ string int2bin(int n, int bits = 8) {
 }
 
 // mensaje a binario
-string msg2bin(string t) {
+inline string msg2bin(string t) {
 	string r = "";
 	for (auto c : t) r += int2bin(c);
 	return r;
 }
 // binario a entero
-int bin2int(string b) {
+inline int bin2int(string b) {
 	int r = 0;
 	for (int i = 0; i < (int)b.length(); i++) r += b.at(b.length() - 1 - i) == '1' ? pow(2, i) : 0;
 	return r;
 }
 // representaci�n hexadecimal
-string toHEX(uint32_t n, int digits) {
+inline string toHEX(uint32_t n, int digits) {
 	string res = string(digits, '0');
 	int ind = -1, mod = 0;
 	while (n > 15) {
@@ -81,9 +83,11 @@ string toHEX(uint32_t n, int digits) {
 struct SHA256 {
 	static string cifrar(string t);
 };
-
-// funci�n hash de SHA256
-string SHA256::cifrar(string t) {
+// funci�n hash de SHA256.
+// Definida en esta cabecera; el guard evita duplicar la definici�n cuando se
+// incluye desde varias unidades de traducci�n (p. ej. tests + main).
+#ifndef SHA256_CPP_UNIT_TEST
+inline string SHA256::cifrar(string t) {
 	uint32_t ini[] = H_INICIAL;
 	for (int i = 0; i < 8; i++) H[i] = ini[i];
 	string msg = msg2bin(t) + "1";
@@ -112,8 +116,7 @@ string SHA256::cifrar(string t) {
 			if (i < 16) W[i] = Mi[i];
 			else W[i] = o1(W.at(i - 2)) + W.at(i - 7) + o0(W.at(i - 15)) + W.at(i - 16);
 
-
-			uint32_t T1 = h + s1(e) + Ch(e, f, g) + K[i] + W[i];
+			uint32_t T1 = h + s1(e) + Ch(e, f, g) + SHA256_K[i] + W[i];
 			uint32_t T2 = s0(a) + Maj(a, b, c);
 
 			h = g;
@@ -124,17 +127,6 @@ string SHA256::cifrar(string t) {
 			c = b;
 			b = a;
 			a = T1 + T2;
-
-			// descomentar esto para ver cada iteraci�n
-			/*cout << "t=" << i << " => ";
-			cout << toHEX(a,8) << "  ";
-			cout << toHEX(b,8) << "  ";
-			cout << toHEX(c,8) << "  ";
-			cout << toHEX(d,8) << "  ";
-			cout << toHEX(e,8) << "  ";
-			cout << toHEX(f,8) << "  ";
-			cout << toHEX(g,8) << "  ";
-			cout << toHEX(h,8) << endl;*/
 		}
 		H[0] = a + H[0];
 		H[1] = b + H[1];
@@ -151,3 +143,4 @@ string SHA256::cifrar(string t) {
 	for (auto h : H) resultado += toHEX(h, 8);
 	return resultado;
 }
+#endif // SHA256_CPP_UNIT_TEST

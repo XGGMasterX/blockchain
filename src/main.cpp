@@ -3,19 +3,16 @@
 #include <vector>
 #include <limits>
 #include <cstdlib>
-#include "Usuario.h" 
-#include "Blockchain.h" 
+#include "Usuario.h"
+#include "Blockchain.h"
 
 using namespace std;
 
-//AGREGAR==============
-//USUARIOS
-//CARTERA
 Usuario* registerAcount();
 void ingresoCuenta();
 void loginAcount(Usuario*& x, ListTransactions *& lista);
 void inAcoint();
-void Transaction(ListTransactions *& lista);
+void Transaction(Usuario* emisor, ListTransactions *& lista);
 void closeBlockChain(Blockchain awesomeCoin, ListTransactions *& lista);
 
 //Limpieza de pantalla portable (Windows/Linux)
@@ -41,77 +38,100 @@ void ingresoCuenta(){
     std::cout << endl;
     std::cout << "Crear Cuenta--(1)";
     std::cout << endl;
-    std::cout << "Ingresar en Cuenta--(2)"; 
+    std::cout << "Ingresar en Cuenta--(2)";
     std::cout << endl;
-    std::cout << "Salir--(3)"; 
+    std::cout << "Salir--(3)";
     std::cout << endl;
     cin >> orden;
- 
 }
 
 void inAcoint() {
     std::cout << "Que desea realizar ?";
     std::cout << endl;
-    std::cout << "Realizar Transferencia--(1)"; 
+    std::cout << "Realizar Transferencia--(1)";
     std::cout << endl;
-    std::cout << "Salir--(2)"; 
+    std::cout << "Salir--(2)";
     std::cout << endl;
     cin >> orden;
- 
 }
 
-Usuario* registerAcount() { 
+Usuario* registerAcount() {
     return new Usuario();
 }
 
-void loginAcount(Usuario *&x,ListTransactions *& lista) {
+void loginAcount(Usuario*& x, ListTransactions *& lista) {
     if (x != NULL) {
-        limpiarPantalla();
-        do {
-            inAcoint();
-            switch (orden)
-            {
-            case 1:  Transaction(lista);
-                break; 
-            default:
-                break;
-            }
+        // COMPROBAR PRIVADA: la sesion se abre con la clave privada; el hash
+        // debe reproducir la clave publica de la cuenta. Sin sesion no hay
+        // cartera (y las transferencias se consignarian con firma invalida).
+        string privKey;
+        cout << "Ingresa tu clave privada: ";
+        cin >> privKey;
 
+        if (x->login(privKey)) {
+            cout << "Sesion abierta. Bienvenido de vuelta." << endl;
+            pausar();
             limpiarPantalla();
-             
-        } while (orden != 2);
+            do {
+                inAcoint();
+                switch (orden)
+                {
+                case 1:  Transaction(x, lista);
+                    break;
+                default:
+                    break;
+                }
+
+                limpiarPantalla();
+
+            } while (orden != 2);
+        }
+        else {
+            cout << "Clave privada incorrecta. Acceso denegado." << endl;
+            pausar();
+        }
+    }
+    else {
+        cout << "Primero debes crear una cuenta (opcion 1)." << endl;
+        pausar();
     }
 }
 
-//EL ULTIMO INGRESO NO SE ASIGNA
-//MAS PERSONALIZACION DE TRANSACTIONS
-void Transaction(ListTransactions *&lista) {
+void Transaction(Usuario* emisor, ListTransactions *&lista) {
 
     double amount;
     double fee;
+    string receiver;
 
+    cout << "Direccion del receptor (clave publica): ";
+    cin >> receiver;
+    cout << endl;
     cout << "Cuanto dinero desea enviar ?:"; cin >> amount;
     cout << endl;
     cout << "Cuanta Comision desea darle al minero ?:"; cin >> fee;
     cout << endl;
 
-    if (true) {
+    if (emisor != NULL) {
         //COMENZAMOS BLOQUE///////////////
         time_t data1Time;
         TransactionData* data1 = NULL;
-        data1  =  data1->_ComprobationKey(amount, fee, "Joe", "Sally", time(&data1Time), 0);
+        // COMPROBAR PRIVADA: la sesion ya verifico la clave; el emisor firma
+        // con su clave publica (identidad on-chain). El receptor es el que
+        // indico el usuario.
+        data1 = data1->_ComprobationKey(amount, fee, emisor->publicKey, receiver, time(&data1Time), 1);
+        // EFECTUAR INTERCAMBIO DE MONTOS: los saldos (sender/receiver) los
+        // liquida el bloque al minar; aqui solo se emite la transferencia.
         lista->setTransactionLista(data1);
+        cout << "Transferencia emitida de " << amount << " a " << receiver
+             << " (comision: " << fee << ")." << endl;
     }
 
     pausar();
 }
 
-void closeBlockChain(Blockchain awesomeCoin,ListTransactions *& lista){
-    //TERMINAMOS BOQUE///////////////
+void closeBlockChain(Blockchain awesomeCoin, ListTransactions *& lista){
+    //TERMINAMOS BLOQUE///////////////
     awesomeCoin.addBlock(lista);
-
-
-
 
     //Pintamos Cadena
     awesomeCoin.printChain();
@@ -125,19 +145,15 @@ void closeBlockChain(Blockchain awesomeCoin,ListTransactions *& lista){
         cout << "ESTA CADENA ES VALIDA" << endl;
     }
 
-    //HACER Intentamos alterar la cadena 
     pausar();
-
 }
 
 int main()
 {
     //Creamos la cadena
-    //Bloque genesis
-    //cout << "GENESIS" << endl;
+    //Bloque genesis (ancla de la cadena: indice 0, previousHash "0")
     Blockchain awesomeCoin;
 
-    //cout << "Cadena" << endl;
     //Agregamos Primer Bloque
 
     ListTransactions* lista = new ListTransactions();
@@ -153,7 +169,7 @@ int main()
         default:
             break;
         }
-     
+
         limpiarPantalla();
         cin.clear();
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
